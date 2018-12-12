@@ -1,0 +1,881 @@
+---
+title: "Data 621 Assignment 5"
+author: "Md Jalal Uddin"
+date: "December 09, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Overview:
+In this homework assignment, I will explore, analyze and model a data set containing information on approximately 12,000 commercially available wines. The variables are mostly related to the chemical properties of the wine being sold. The response variable is the number of sample cases of wine that were purchased by wine distribution companies after sampling a wine. These cases would be used to provide tasting samples to restaurants and wine stores around the United States. The more sample cases purchased, the more likely is a wine to be sold at a high end restaurant. A large wine manufacturer is studying the data in order to predict the number of wine cases ordered based upon the wine characteristics. If the wine manufacturer can predict the number of cases, then that manufacturer will be able to adjust their wine offering to maximize sales. 
+
+My goal is to build a count regression model to predict the number of cases of wine that will be sold given certain properties of the wine. 
+
+To begin I will install some require packages. I will do the following data analysis procedure for my assignment here.
+1. Data Exploration.
+2. Data Preparation.
+3. Build model.
+4.Select model.
+
+At first, I am installing require packages below:
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+options(tinytex.verbose = TRUE)
+
+```
+
+
+```{r}
+
+library(devtools)
+library(tinytex)
+library(readr)
+library(kableExtra)
+library(tidyverse)
+library(knitr)
+library(psych)
+library(gridExtra)
+library(usdm)
+library(mice)
+library(ggiraph)
+library(cowplot)
+library(reshape2)
+library(corrgram)
+library(caTools)
+library(caret)
+library(ROCR)
+library(pROC)
+library(reshape2)
+library(Amelia)
+library(qqplotr)
+library(moments)
+library(car)
+library(MASS)
+library(geoR)
+library(pander)
+library(ggplot2)
+library(gridExtra)
+
+
+```
+
+(1) DATA EXPLORATION:
+
+In data exploration process, I have described the size and the variables of wine training data. To do that I used summary function of R which shows the mean, median,1st quartile, 3rd quartile and also missing values. 
+
+```{r}
+wine_train <- read.csv("https://raw.githubusercontent.com/uddinjalal1983/DATA_621/master/wine-training-data.csv", stringsAsFactors = FALSE) 
+
+do_factors <- function(wine_instance){
+  wine_instance <- within(wine_instance, {
+      LabelAppeal <- factor(LabelAppeal)
+      AcidIndex <- factor(AcidIndex)
+      STARS <- factor(STARS)
+  })
+  return (wine_instance)
+}
+summary(wine_train)
+
+```
+
+Removing the Index column:
+Here, I have removed the index column as follows:
+
+```{r}
+wine_train <- wine_train[,-c(1)]
+
+```
+
+It shows that there are 12795 observations and 16 variables. Each wine has 14 potential predictor variables, and 1 response variable. The response variable is “TARGET”, which is the number of cases purchased.
+
+
+Visual Exploration:
+
+Now I will describe more specifically of the each individual available variables.
+
+Testing Acidity of wine from AcidIndex variables:
+Proprietary method of testing total acidity of wine by using a weighted average with AcidIndex variable.
+
+```{r}
+with(wine_train, c(summary(AcidIndex), SD=sd(AcidIndex), Skew=skewness(AcidIndex), Kurt=kurtosis(AcidIndex)))
+
+```
+
+The above result shows that the mean and median of acid index almost same with approximately 1.65 skewness. 
+
+Now, I will draw the hitogram, QQ plot, Boxplot of AcidIndex variable. I will also draw the boxplot of the variable by TARGET variable to see how much acidIndex are available in each number of cases. 
+
+```{r}
+hist <- ggplot(wine_train, aes(AcidIndex)) + geom_histogram(fill = 'dodgerblue', binwidth = 2, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of AcidIndex') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=AcidIndex)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of AcidIndex") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", AcidIndex)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of AcidIndex', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), AcidIndex)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of AcidIndex by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will find the information about Alcohol variable. This variable tells us about the Alcohol content.
+
+```{r}
+with(wine_train, c(summary(Alcohol), SD=sd(Alcohol), Skew=skewness(Alcohol), Kurt=kurtosis(Alcohol)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of Alcohol variable. I will also draw the boxplot of the variable by TARGET variable to see how much alcohol are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(Alcohol)) + geom_histogram(fill = 'dodgerblue', binwidth = 2, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Alcohol') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=Alcohol)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Alcohol") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", Alcohol)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Alcohol', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), Alcohol)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Alcohol by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will describe about Chlorides variable. This variable tells us about the Chloride content of wine.
+
+```{r}
+with(wine_train, c(summary(Chlorides), SD=sd(Chlorides), Skew=skewness(Chlorides), Kurt=kurtosis(Chlorides)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of Chloride variable. I will also draw the boxplot of the variable by TARGET variable to see how muchChloride are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(Chlorides)) + geom_histogram(fill = 'dodgerblue', binwidth = .2, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Chlorides') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=Chlorides)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Chlorides") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", Chlorides)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Chlorides', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), Chlorides)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Chlorides by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will see the information about CitricAcid variable. This variable tells us about the Citric Acid Content of wine.
+
+```{r}
+with(wine_train, c(summary(CitricAcid), SD=sd(CitricAcid), Skew=skewness(CitricAcid), Kurt=kurtosis(CitricAcid)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of CitricAcid variable. I will also draw the boxplot of the variable by TARGET variable to see how much CitricAcid are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(CitricAcid)) + geom_histogram(fill = 'dodgerblue', binwidth = 1, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of CitricAcid') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=CitricAcid)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of CitricAcid") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", CitricAcid)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of CitricAcid', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), CitricAcid)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of CitricAcid by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will find the informaion about Density variable. This variable tells us about the Density of wine.
+
+```{r}
+with(wine_train, c(summary(Density), SD=sd(Density), Skew=skewness(Density), Kurt=kurtosis(Density)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of Density variable. I will also draw the boxplot of the variable by TARGET variable to see how Density are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(Density)) + geom_histogram(fill = 'dodgerblue', binwidth = .05, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Density') + theme(plot.title = element_text(hjust = 0.5)) 
+qq_plot <- ggplot(wine_train, aes(sample=Density)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Density") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", Density)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Density', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), Density)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Density by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will find the information about FixedAcidity. This variable tells us about the FixedAcidity of wine.
+
+```{r}
+with(wine_train, c(summary(FixedAcidity), SD=sd(FixedAcidity), Skew=skewness(FixedAcidity), Kurt=kurtosis(FixedAcidity)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of FixedAcidity variable. I will also draw the boxplot of the variable by TARGET variable to see how much FixedAcidity are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(FixedAcidity)) + geom_histogram(fill = 'dodgerblue', binwidth = 4, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of FixedAcidity') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=FixedAcidity)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of FixedAcidity") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", FixedAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of FixedAcidity', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), FixedAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of FixedAcidity by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will find the information here abut FreeSulfurDioxide. This variable tells us about the Sulfur Dioxide content of wine.
+
+```{r}
+with(wine_train, c(summary(FreeSulfurDioxide), SD=sd(FreeSulfurDioxide), Skew=skewness(FreeSulfurDioxide), Kurt=kurtosis(FreeSulfurDioxide)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of FreeSulfurDioxide variable. I will also draw the boxplot of the variable by TARGET variable to see how much FreeSulfurDioxide are available in each number of cases.
+
+
+```{r}
+hist <- ggplot(wine_train, aes(FreeSulfurDioxide)) + geom_histogram(fill = 'dodgerblue', binwidth = 50, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of FreeSulfurDioxide') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=FreeSulfurDioxide)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of FreeSulfurDioxide") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", FreeSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of FreeSulfurDioxide', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), FreeSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of FreeSulfurDioxide by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+I will find the information about LabelAppeal.This variable shows Marketing Score which indicate the appeal of label design for consumers. High numbers suggest customers like the label design. Negative numbers suggest customers don’t like the design. Many consumers purchase based on the visual appeal of the wine label design. Higher numbers suggest better sales.
+
+```{r}
+with(wine_train, c(summary(LabelAppeal), SD=sd(LabelAppeal), Skew=skewness(LabelAppeal), Kurt=kurtosis(LabelAppeal)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of LabelAppeal variable. I will also draw the boxplot of the variable by TARGET variable to see how much LabelAppeal were done.
+
+```{r}
+hist <- ggplot(wine_train, aes(LabelAppeal)) + geom_histogram(fill = 'dodgerblue', binwidth = 1, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of LabelAppeal') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=LabelAppeal)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of LabelAppeal") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", LabelAppeal)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of LabelAppeal', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), LabelAppeal)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of LabelAppeal by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+Here, I will find the information about ResidualSugar. This variable tells us about the ResidualSugar of wine.
+
+```{r}
+with(wine_train, c(summary(ResidualSugar), SD=sd(ResidualSugar), Skew=skewness(ResidualSugar), Kurt=kurtosis(ResidualSugar)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of ResidualSugar variable. I will also draw the boxplot of the variable by TARGET variable to see how much ResidualSugar are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(ResidualSugar)) + geom_histogram(fill = 'dodgerblue', binwidth = 20, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of ResidualSugar') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=ResidualSugar)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of ResidualSugar") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", ResidualSugar)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of ResidualSugar', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), ResidualSugar)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of ResidualSugar by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+Here, I will find the information about STARS. This variable tells us about Wine rating by a team of experts. 4 Stars = Excellent, 1 Star = Poor. A high number of stars suggests high sales.
+
+```{r}
+with(wine_train, c(summary(STARS), SD=sd(STARS), Skew=skewness(STARS), Kurt=kurtosis(STARS)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of STARS variable. I will also draw the boxplot of the variable by TARGET variable to see how much STARS werer provided.
+
+
+```{r}
+hist <- ggplot(wine_train, aes(STARS)) + geom_histogram(fill = 'dodgerblue', binwidth = 1, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of STARS') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=STARS)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of STARS") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", STARS)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of STARS', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), STARS)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of STARS by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+Here, I will find the information about Sulphates. This variable tells us about the Sulphates content of wine.
+
+```{r}
+with(wine_train, c(summary(Sulphates), SD=sd(Sulphates), Skew=skewness(Sulphates), Kurt=kurtosis(Sulphates)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of Sulphates variable. I will also draw the boxplot of the variable by TARGET variable to see how much Sulphates are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(Sulphates)) + geom_histogram(fill = 'dodgerblue', binwidth = .5, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Sulphates') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=Sulphates)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Sulphates") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", Sulphates)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Sulphates', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), Sulphates)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Sulphates by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+Here, I will find the information about TotalSulfurDioxide. This variable tells us about the Total Sulfur Dioxide of Wine.
+
+```{r}
+with(wine_train, c(summary(TotalSulfurDioxide), SD=sd(TotalSulfurDioxide), Skew=skewness(TotalSulfurDioxide), Kurt=kurtosis(TotalSulfurDioxide)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of TotalSulfurDioxide variable. I will also draw the boxplot of the variable by TARGET variable to see how much RTotalSulfurDioxide are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(TotalSulfurDioxide)) + geom_histogram(fill = 'dodgerblue', binwidth = 200, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of TotalSulfurDioxide') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=TotalSulfurDioxide)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of TotalSulfurDioxide") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", TotalSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of TotalSulfurDioxide', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), TotalSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of TotalSulfurDioxide by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+Here, I will find the information about VolatileAcidity. This variable tells us about the VolatileAcidity content of Wine.
+
+```{r}
+with(wine_train, c(summary(VolatileAcidity), SD=sd(VolatileAcidity), Skew=skewness(VolatileAcidity), Kurt=kurtosis(VolatileAcidity)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of VolatileAcidity variable. I will also draw the boxplot of the variable by TARGET variable to see how much VolatileAcidity are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(VolatileAcidity)) + geom_histogram(fill = 'dodgerblue', binwidth = .5, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of VolatileAcidity') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=VolatileAcidity)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of VolatileAcidity") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", VolatileAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of VolatileAcidity', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), VolatileAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of VolatileAcidity by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+Here, I will find the information about pH. This variable tells us about the pH of Wine.
+
+```{r}
+with(wine_train, c(summary(pH), SD=sd(pH), Skew=skewness(pH), Kurt=kurtosis(pH)))
+
+```
+
+Now, I will draw the hitogram, QQ plot, Boxplot of PH variable. I will also draw the boxplot of the variable by TARGET variable to see how much PH are available in each number of cases.
+
+```{r}
+hist <- ggplot(wine_train, aes(pH)) + geom_histogram(fill = 'dodgerblue', binwidth = .5, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of pH') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(wine_train, aes(sample=pH)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of pH") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(wine_train, aes(x="", pH)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of pH', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(wine_train, aes(x=factor(TARGET), pH)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of pH by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+Now, I will find the missing values also called NA's for all the variables. 
+
+```{r}
+Non_NAs <- sapply(wine_train, function(y) sum(length(which(!is.na(y)))))
+NAs <- sapply(wine_train, function(y) sum(length(which(is.na(y)))))
+NA_Percent <- NAs / (NAs + Non_NAs)
+
+NA_SUMMARY <- data.frame(Non_NAs,NAs,NA_Percent)
+
+missmap(wine_train, main = "Missing Values")
+
+```
+
+Finding NA's using NA_Summary:
+
+```{r}
+kable(NA_SUMMARY)
+
+```
+
+From the result we see that the highest number of missing vaules are in STARS variable which is 3359. It is almost 27%. 
+
+Finding the summary of the 
+
+```{r}
+names(wine_train)
+
+```
+
+Finding the correlation between the variables by using cor function. 
+
+```{r}
+cor(drop_na(wine_train))
+
+```
+
+```{r}
+#pairs.panels(wine_train[1:15]) 
+
+```
+
+Now we will see the TARGET Variable. This variable tells us about the number cases purchased.
+
+
+```{r}
+options(width=100)
+round(with(wine_train, c(summary(TARGET), StdD=sd(TARGET), Skew=skewness(TARGET), Kurt=kurtosis(TARGET))),2)
+
+```
+
+
+(2) DATA PREPARATION:
+We will prepare our data by fixing missing values, transform the data etc. First, i will split the data into training and test.
+
+```{r}
+set.seed(999) 
+sampl = sample.split(wine_train$TARGET, SplitRatio = .80)
+wine_train1 <- subset(wine_train, sampl == TRUE)
+wine_test1 <- subset(wine_train, sampl == FALSE)
+
+```
+
+We will now use the mice package to impute missing values.
+
+```{r}
+wine_train2 <- mice(wine_train1, m=1, maxit = 5, seed = 42)
+
+```
+
+
+```{r}
+wine_train2 <- complete(wine_train2)
+wine_train2 <- as.data.frame(wine_train2)
+
+wine_test2 <- test <- mice(wine_test1, m=1, maxit = 5, seed = 42)
+
+```
+
+
+```{r}
+wine_test2 <- complete(wine_test2)
+wine_test2 <- as.data.frame(wine_test2)
+
+```
+
+There is very low correlation between AcidIndex and TARGET. Therefore, I will do log transformation on AcidIndex to build our model as follows.
+
+```{r}
+wine_train2$AcidIndex <- log(wine_train2$AcidIndex)
+wine_test2$AcidIndex <- log(wine_test2$AcidIndex)
+
+```
+
+(3) BUILD MODELS:
+
+Now, I will build different models by using the wine training data. 
+At first, I will build Poisson model without imputations.
+
+1.Poisson model without imputations:
+Here is the model and the  summary of the model:
+
+```{r}
+model1 = glm(TARGET ~  ., data=wine_train1, family=poisson)
+summary(model1)
+
+```
+
+Now, I will draw the histogram, qq plot, and the box plot if PH and also the boxplot of PH by TARGET variable. 
+
+```{r}
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+
+```
+
+2. Poisson model without imputations and only with significant variables: Next, I have build the Poisson model without imputations and only with significant variables. The model and the summary of the model  is as follows:
+
+```{r}
+model2 = glm(TARGET ~  .-FixedAcidity-CitricAcid-ResidualSugar-Chlorides-FreeSulfurDioxide-TotalSulfurDioxide-Density-pH-Sulphates-Alcohol, data=wine_train1, family=poisson)
+summary(model2)
+
+```
+
+I have plotted my Poisson model without imputations and only with significant variables with Residuals vs Fitted, Normal Q-Q, Scale-Location, and finally Residuals vs Leverage as follows:
+
+```{r}
+plot(model2)
+
+```
+
+
+3. Poisson model with Imputation: Here, I have drawn the poisson model with imputation as follows. 
+
+The summary of the model have provided bellow.
+
+```{r}
+model3 = glm(TARGET ~  ., data=wine_train2, family=poisson)
+summary(model3)
+
+```
+
+I have plotted my Poisson model with Imputation by Residuals vs Fitted, Normal Q-Q, Scale-Location, and finally Residuals vs Leverage as follows:
+
+```{r}
+plot(model3)
+
+```
+
+4.Poisson model with imputations and only significant variables: Here,  I am building poisson model with imputations and also with only significant variables.
+
+My model and the summary of the model is as below:
+
+```{r}
+model4 = glm(TARGET ~  .-FixedAcidity-CitricAcid-ResidualSugar-Density-Alcohol, data=wine_train2, family=poisson)
+summary(model4)
+
+```
+
+I have plotted my Poisson model with imputations and only significant variables by Residuals vs Fitted, Normal Q-Q, Scale-Location, and finally Residuals vs Leverage as follows:
+
+```{r}
+plot(model4)
+
+```
+
+5. Negative Binomial model without imputations: Now, I will build negative binomial model without imputation form the training data. 
+
+The model and the summary of the model is as below:
+
+```{r}
+model5 <- glm.nb(TARGET ~ ., data = wine_train1)
+
+```
+
+```{r}
+summary(model5)
+
+```
+
+Here, I have plotted the Negative Binomial model without imputation by Residuals vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage as below:
+
+```{r}
+plot(model5)
+
+```
+
+6. Negative Binomial without imputations and only significant variables:
+Now, I am building my negative binomial model without imputations and only with significant variables as follows:
+
+
+
+```{r}
+model6 <- glm.nb(TARGET ~ .-FixedAcidity-CitricAcid-ResidualSugar-Chlorides-FreeSulfurDioxide-TotalSulfurDioxide-Density-pH-Sulphates-Alcohol, data = wine_train1)
+
+```
+
+The summary of my negative binomial model without imputations is:
+
+```{r}
+summary(model6)
+
+```
+
+Here, I have plotted the Negative Binomial model without imputation and only with significant variables by Residuals vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage as below:
+
+```{r}
+plot(model6)
+
+```
+
+7. Negative Binomial with imputations: Now, I will build a negative binomial model with imputation here.
+
+```{r}
+model7 <- glm.nb(TARGET ~ ., data = wine_train2)
+
+```
+
+Summary of the negative binomial model with imputation. 
+
+```{r}
+summary(model7)
+
+```
+
+Here, I have plotted the Negative Binomial model with imputation by Residuals vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage as below:
+
+```{r}
+plot(model7)
+
+```
+
+8. Negative Binomialmodel with imputations and only with significant variables: Now, I will again build a negative binomial model with imputations and only significant variables here.
+
+```{r}
+model8 <- glm.nb(TARGET ~ .-FixedAcidity-CitricAcid-ResidualSugar-Density-Alcohol, data = wine_train2)
+
+```
+
+The summary of the negative binomial model with imputations and only with significat variables are as follows:
+
+```{r}
+summary(model8)
+
+```
+
+Here, I have plotted the Negative Binomial model with imputation and only with significant variables by Residuals vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage as below:
+
+```{r}
+plot(model8)
+
+```
+
+9. Linear Model with imputations: Now, I am building a linear model with imputations and also the summary of the model as follows.
+
+```{r}
+model9 <- lm(TARGET ~ ., data = wine_train2)
+summary(model9)
+
+```
+
+Here, I have plotted the linear model with imputations by Residuals vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage as below:
+
+```{r}
+plot(model9)
+
+```
+
+10. Linear Model with imputations and only significant variables: Now, I am building a Linear Model with imputations and only significant variables.
+
+The sumary of the Linear Model with imputations and only significant variables are as follows:
+
+```{r}
+model10 <- lm(TARGET ~ .-FixedAcidity-CitricAcid-ResidualSugar, data = wine_train2)
+summary(model10)
+
+```
+
+
+Here, I have plotted the Linear Model with imputations and only significant variables by Residuals vs Fitted, Normal Q-Q, Scale-Location, Residuals vs Leverage as below:
+
+```{r}
+plot(model10)
+
+```
+
+Output of the Model using different test: Now, I will see the output of the Models using test data. 
+
+I will use the squared loss to validate the model.
+
+```{r}
+modelValidation <- function(mod, test){
+  preds = predict(mod, test)
+  diffMat = as.numeric(preds) - as.numeric(test$TARGET)
+  diffMat = diffMat^2
+  loss <- mean(diffMat)
+  return(loss)
+}
+
+```
+
+Poisson model with imputations:
+
+```{r}
+
+modelValidation(model3, wine_test2)
+
+```
+
+Poisson model with imputations and only significant variables:
+
+```{r}
+modelValidation(model4, wine_test2)
+
+```
+
+Negative Binomial with imputations:
+
+```{r}
+modelValidation(model7, wine_test2)
+
+```
+
+Negative Binomial with imputations and only significant variables:
+
+```{r}
+modelValidation(model8, wine_test2)
+
+```
+
+Linear Model with imputations:
+
+```{r}
+modelValidation(model9, wine_test2)
+
+```
+
+
+Linear Model with imputations and only significant variables:
+
+```{r}
+
+modelValidation(model10, wine_test2)
+
+```
+
+
+MODEL SELECTION:
+From the above different test, I find following:
+1.Poisson model with imputations has modelValidation value 6.852
+2.Poisson model with imputations and only with significant variable has the modelvalidation value 6.854
+3.Negative Binomial with imputations has the modelvalidation value 6.852
+4.Negative Binomial with imputations and only with significant variable has the modelvalidation value 6.854
+5.Linear model with imputations has the modelvalidation value 2.02 
+6. Linear model with imputations and only with significant variable has the modelvalidation value 2.03 
+
+From the above models, I would like to go with Linear model with imputations and only with significant variable model based on the test result. Since, Linear Model with imputations and only significant variables uses less variables and is parsimonious. Also the R2 looks fine. The squared root is also fine.
+
+Prediction:
+We will use the same method to impute and use log transformation for AcidIndex.
+
+```{r}
+wine_eval <- read.csv("https://raw.githubusercontent.com/uddinjalal1983/DATA_621/master/wine-evaluation-data.csv", stringsAsFactors = FALSE) 
+
+do_factors <- function(wine_instance){
+  wine_instance <- within(wine_instance, {
+      LabelAppeal <- factor(LabelAppeal)
+      AcidIndex <- factor(AcidIndex)
+      STARS <- factor(STARS)
+  })
+  return (wine_instance)
+}
+summary(wine_eval)
+
+```
+
+```{r}
+wine_eval <- mice(wine_eval, m=1, maxit = 5, seed = 42)
+
+```
+
+```{r}
+wine_eval <- complete(wine_eval)
+wine_eval <- as.data.frame(wine_eval)
+wine_eval$AcidIndex <- log(wine_eval$AcidIndex)
+wine_eval$TARGET1 <- predict(model10, newdata=wine_eval)
+write.csv(wine_eval,"Evaluation_Full_Data.csv", row.names=FALSE)
+
+```
+
+Conclusion: By following the procedure of Data exploration, data preparation, building model and selecting model, I have come to a conlcusion that Linear model with imputations and only with significant variable model is the best model based on our wine traing data set. Since, this model has less variables and is parsimonious and also Modelvalidation value also lower. The R value and the square root value of the model looks great.  
